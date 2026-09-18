@@ -40,6 +40,71 @@
     }
     button { font: inherit; color: inherit; background: none; border: 0; cursor: pointer; }
     .app { display: grid; grid-template-rows: 36px 2px 1fr 22px; height: 100%; position: relative; }
+    html[data-locked="1"] .app {
+      filter: blur(14px) saturate(.6);
+      pointer-events: none;
+      user-select: none;
+    }
+    .lock {
+      display: none;
+      position: fixed; inset: 0; z-index: 80;
+      align-items: center; justify-content: center;
+      background: rgba(8,8,8,.55);
+    }
+    html[data-locked="1"] .lock { display: flex; animation: lockIn .5s ease; }
+    html[data-booting="1"] .app {
+      animation: bootApp .7s cubic-bezier(.22,1,.36,1) both;
+    }
+    html[data-unlocking="1"] .app {
+      filter: blur(0) saturate(1);
+      animation: unlockApp .55s cubic-bezier(.22,1,.36,1) both;
+    }
+    html[data-unlocking="1"] .lock {
+      display: flex; animation: lockOut .35s ease forwards; pointer-events: none;
+    }
+    @keyframes lockIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    @keyframes lockOut {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+    @keyframes bootApp {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: none; }
+    }
+    @keyframes unlockApp {
+      from { filter: blur(14px) saturate(.6); opacity: .7; }
+      to { filter: blur(0) saturate(1); opacity: 1; }
+    }
+    .lock-card { animation: cardIn .45s cubic-bezier(.22,1,.36,1) both; }
+    @keyframes cardIn {
+      from { opacity: 0; transform: translateY(10px); }
+      to { opacity: 1; transform: none; }
+    }
+    .lock-card {
+      width: min(360px, 88vw);
+      border: 1px solid var(--line-2, #2a2a2a);
+      background: #101010;
+      padding: 22px 20px 18px;
+      font-family: "IBM Plex Mono", ui-monospace, monospace;
+    }
+    .lock-card .k { color: #555; font-size: 10px; letter-spacing: .18em; text-transform: lowercase; margin-bottom: 10px; }
+    .lock-card input {
+      width: 100%; background: #0c0c0c; border: 1px solid #2a2a2a; color: transparent;
+      caret-color: #8a8a8a; font: inherit; padding: 10px 12px; outline: none;
+      -webkit-text-security: disc;
+    }
+    .lock-card input:focus { border-color: #8a8a8a; }
+    .lock-card input::placeholder { color: transparent; }
+    .lock-card .err { color: #c46b6b; font-size: 11px; min-height: 16px; margin-top: 8px; }
+    .lock-card button {
+      margin-top: 12px; width: 100%; padding: 9px 12px;
+      background: #1b1b1b; border: 1px solid #2a2a2a; color: #cfcfcf; cursor: pointer;
+      font: inherit;
+    }
+    .lock-card button:hover { color: #fff; border-color: #555; }
     .titlebar {
       display: grid; grid-template-columns: 1fr auto 1fr; align-items: center;
       border-bottom: 1px solid var(--line); padding: 0 14px; color: var(--fg-dim); font-size: 11px;
@@ -294,6 +359,14 @@
     }
   </style></head>
 <body>
+  <div class="lock" id="lock" role="dialog" aria-modal="true">
+    <form class="lock-card" id="lockForm" autocomplete="off">
+      <div class="k">dravex · access</div>
+      <input id="lockInput" type="password" placeholder="" autocomplete="off" autofocus />
+      <div class="err" id="lockErr"></div>
+      <button type="submit">enter</button>
+    </form>
+  </div>
   <div class="app">
     <header class="titlebar">
       <button class="brand" id="brand">dravex</button>
@@ -841,6 +914,43 @@ dynamic      UI tint follows loaded core` }
       if (DOCS[name]) openFile(name);
     });
     window.addEventListener("resize", () => moveSel(treeEl.querySelector(".tree-file.on")));
+
+    const PASS = "dravex2027";
+    function isUnlocked() {
+      try { return sessionStorage.getItem("dravex_unlock") === "1"; } catch (e) { return false; }
+    }
+    function lockSite() {
+      document.documentElement.setAttribute("data-locked", "1");
+      const inp = document.getElementById("lockInput");
+      if (inp) setTimeout(() => inp.focus(), 50);
+    }
+    function unlockSite() {
+      document.documentElement.removeAttribute("data-locked");
+      try { sessionStorage.setItem("dravex_unlock", "1"); } catch (e) {}
+    }
+    document.getElementById("lockForm").addEventListener("submit", (e) => {
+      e.preventDefault();
+      const val = document.getElementById("lockInput").value;
+      const err = document.getElementById("lockErr");
+      if (val === PASS) {
+        err.textContent = "";
+        document.documentElement.setAttribute("data-unlocking", "1");
+        setTimeout(() => {
+          unlockSite();
+          document.documentElement.removeAttribute("data-unlocking");
+        }, 520);
+      } else {
+        err.textContent = "denied";
+        document.getElementById("lockInput").value = "";
+        document.getElementById("lockInput").focus();
+      }
+    });
+    document.documentElement.setAttribute("data-booting", "1");
+    setTimeout(() => document.documentElement.removeAttribute("data-booting"), 750);
+    if (!isUnlocked()) lockSite();
+    else {
+      document.documentElement.setAttribute("data-booting", "1");
+    }
 
     setCore("none");
     buildTree();
